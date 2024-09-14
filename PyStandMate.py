@@ -21,6 +21,9 @@ import sys
 import urllib.parse
 import urllib.request
 import zipfile
+import gzip
+from io import BytesIO
+
 
 
 EmbedPython = collections.namedtuple("EmbedPython", ["url", "filename"])
@@ -42,13 +45,20 @@ class LoadFromFile(argparse.Action):
 def fetch_page(url, encoding="utf-8"):
     request = urllib.request.Request(url, headers={"User-Agent": DEFAULT_USER_AGENT})
     response = urllib.request.urlopen(request)
+    content_encoding = response.headers.get('Content-Encoding', '').lower()
 
-    if encoding:
+    if content_encoding == 'gzip':
+        # 处理 gzip 压缩的内容
+        buffer = BytesIO(response.read())
+        with gzip.open(buffer, 'rt', encoding=encoding) as gz_file:
+            for line in gz_file:
+                yield line
+    else:
+        # 处理未压缩的内容
         charset = response.headers.get_content_charset(failobj=encoding)
         for line in response:
             yield line.decode(charset)
-    else:
-        yield from response
+
 
 
 def fetch_page_contents(url, encoding="utf-8"):
